@@ -1,0 +1,141 @@
+#!/bin/bash
+
+# Simple backup script
+# 1.0.1 (2013.09.11)
+# writed by vadonka
+
+if [ ! -f /usr/local/etc/simplebackup.conf ]; then
+echo -en "Config file doesn't exsist!\nCreating default config..."
+cat > /usr/local/etc/simplebackup.conf << EOF
+# Change this to yes or comment out after setup
+configured=no
+
+# Backup files root
+backup_root="/opt/backup"
+
+# Folders to backup
+folders_to_backup=(root etc var/www)
+
+# MySQL backup (yes/no)
+mysqlbackup=no
+
+# MySQL backup user (usually root)
+mysqluser=root
+
+# MySQL backup user pass
+mysqlpass=
+
+EOF
+
+echo -e "Done.\n\nPlease setup the configuration file in /usr/local/etc/simplebackup.conf"
+exit 1
+fi
+
+source /usr/local/etc/simplebackup.conf
+
+if [[ $configured == "no" ]]; then
+    echo "Please setup the configuration file first!"
+    exit 1
+elif [ -z $backup_root ] || [ -z $folders_to_backup ] || [ -z $mysqlbackup ]; then
+    echo "Invalid configuration file!"
+    exit 1
+elif [[ $mysqlbackup == "yes" ]]; then
+    if [ -z $mysqluser ] || [ -z $mysqlpass ]; then
+	echo "You're set the MySQL backup to yes, but you dont set the user/password correctly."
+	exit 1
+    fi
+fi
+
+if [ ! -d $backup_root ]; then
+    echo "Backup root folder doesn't exsist!"
+    exit 1
+else
+    touch $backup_root/testfile 2>/dev/null && rm -f $backup_root/testfile || backuprw=no
+fi
+
+if [[ $backuprw == "no" ]]; then
+    echo "Backup root directory ($backup_root) is not writeable!"
+    exit 1
+fi
+
+#################################
+date=$(date '+%Y-%m-%d_%H;%M;%S')
+dayofweek=$(date +%u)
+weekofyear=$(date +%U)
+monthofyear=$(date +%m)
+dayofmonth=$(date +%e)
+
+if [ $dayofweek == "1" ] && [ $dayofmonth -lt "8" ]; then
+    firstmon=1
+else
+    firstmon=0
+fi
+
+num="${#folders_to_backup[*]}"
+let num=$num-1
+
+dailyincremental()
+{
+for bck in $(seq 0 $num); do
+    echo -n "Making daily incremental backup from folder '${folders_to_backup[$bck]}' with date $date . . ."
+    find /${folders_to_backup[$bck]} -newermt $(date +%Y-%m-%d -d '1 day ago') -type f -print | tar zcvf $backup_root/$(basename ${folders_to_backup[$bck]})-[$date]-[Daily-Incremental-$dayofweek].tgz -T - > /dev/null 2>&1
+    echo "Backup completed"
+done
+}
+
+weeklyfull()
+{
+for bck in $(seq 0 $num); do
+    echo -n "Making full weekly backup from folder '${folders_to_backup[$bck]}' with date $date . . ."
+    tar zcvf $backup_root/$(basename ${folders_to_backup[$bck]})-[$date]-[Weekly-Full-$weekofyear].tgz /${folders_to_backup[$bck]} > /dev/null 2>&1
+    touch $backup_root/[Weekly-Full-$weekofyear]-OK
+    echo "Backup completed"
+done
+}
+
+monthlyfull()
+{
+for bck in $(seq 0 $num); do
+    echo -n "Making full monthly backup from folder '${folders_to_backup[$bck]}' with date $date . . ."
+    tar zcvf $backup_root/$(basename ${folders_to_backup[$bck]})-[$date]-[Monthly-Full-$monthofyear].tgz /${folders_to_backup[$bck]} > /dev/null 2>&1
+    touch $backup_root/[Monthly-Full-$monthofyear]-OK
+    echo "Backup completed"
+done
+}
+
+if [ $dayofweek == "1" ] && [ $firstmon == "0"]; then
+    weeklyfull;
+    echo -n "Removing old incremental daily backup . . ."
+    rm -rf $backup_root/*Daily-Incremental*
+    echo "Done"
+elif [ $dayofweek == "1" ] && [ $firstmon == "1"]; then
+    monthlyfull;
+    echo -n "Removing old incremental daily and weekly full backup . . ."
+    rm -rf $backup_root/*Weekly-Full*
+    rm -rf $backup_root/*Daily-Incremental*
+    echo "Done"
+elif [ $dayofweek -ne "1" ] && [ ! -f $backup_root/[Weekly-Full-$weekofyear]-OK ]; then
+    echo "Weekly Full backup is missing, making a new one . . ."
+    weeklyfull;
+    echo -n "Removing old incremental backup . . ."
+    rm -rf $backup_root/*Daily-Incremental*
+    echo "Done"
+else
+    dailyincremental;
+fi
+
+if [[ $mysqlbackup == "yes" ]]; then
+dbasedir=$backup_root/databases/$date
+mkdir -p $dbasedir
+echo "Backup databases . . ."
+
+for i in $(mysql -u root -p$mysqlpass -e "SHOW DATABASES;" | grep -v "+" | grep -v "Database" | grep -v "_schema"); do
+    dbname=`basename $i`
+    echo -n " $dbname . . ."
+    mysqldump -u root -p$mysqlpass $dbname > $dbasedir/"$dbname".sql
+    gzip -9 $dbasedir/"$dbname".sql
+    echo "Done"
+done
+fi
+
+exit 1
