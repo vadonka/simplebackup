@@ -14,6 +14,7 @@ configured=no
 backup_root="/opt/backup"
 
 # Folders to backup
+# DONT delete the ()! Separate folders with space, see example
 folders_to_backup=(root etc var/www)
 
 # MySQL backup (yes/no)
