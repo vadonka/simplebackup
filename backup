@@ -104,12 +104,12 @@ for bck in $(seq 0 $num); do
 done
 }
 
-if [ $dayofweek == "1" ] && [ $firstmon == "0"]; then
+if [ $dayofweek == "1" ] && [ $firstmon == "0" ]; then
     weeklyfull;
     echo -n "Removing old incremental daily backup . . ."
     rm -rf $backup_root/*Daily-Incremental*
     echo "Done"
-elif [ $dayofweek == "1" ] && [ $firstmon == "1"]; then
+elif [ $dayofweek == "1" ] && [ $firstmon == "1" ]; then
     monthlyfull;
     echo -n "Removing old incremental daily and weekly full backup . . ."
     rm -rf $backup_root/*Weekly-Full*
