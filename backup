@@ -133,7 +133,7 @@ echo "Backup databases . . ."
 for i in $(mysql -u root -p$mysqlpass -e "SHOW DATABASES;" | grep -v "+" | grep -v "Database" | grep -v "_schema"); do
     dbname=`basename $i`
     echo -n " $dbname . . ."
-    mysqldump -u root -p$mysqlpass $dbname > $dbasedir/"$dbname".sql
+    mysqldump -E -u root -p$mysqlpass $dbname > $dbasedir/"$dbname".sql
     gzip -9 $dbasedir/"$dbname".sql
     echo "Done"
 done
