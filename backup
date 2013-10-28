@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Simple backup script
-# 1.0.1 (2013.09.11)
+# 1.0.2 (2013.10.28)
 # writed by vadonka
 
 if [ ! -f /usr/local/etc/simplebackup.conf ]; then
@@ -75,6 +75,8 @@ fi
 num="${#folders_to_backup[*]}"
 let num=$num-1
 
+oldweekly=$(ls $backup_root | tr '\t' '\n' | grep Weekly | grep -v 'Weekly-Full-$weekofyear')
+
 dailyincremental()
 {
 for bck in $(seq 0 $num); do
@@ -107,19 +109,24 @@ done
 if [ $dayofweek == "1" ] && [ $firstmon == "0" ]; then
     weeklyfull;
     echo -n "Removing old incremental daily backup . . ."
-    rm -rf $backup_root/*Daily-Incremental*
+    cd $backup_root
+    rm -rf *Daily-Incremental*
+    rm -rf $oldweekly
     echo "Done"
 elif [ $dayofweek == "1" ] && [ $firstmon == "1" ]; then
     monthlyfull;
     echo -n "Removing old incremental daily and weekly full backup . . ."
-    rm -rf $backup_root/*Weekly-Full*
-    rm -rf $backup_root/*Daily-Incremental*
+    cd $backup_root
+    rm -rf *Weekly-Full*
+    rm -rf *Daily-Incremental*
     echo "Done"
 elif [ $dayofweek -ne "1" ] && [ ! -f $backup_root/[Weekly-Full-$weekofyear]-OK ]; then
     echo "Weekly Full backup is missing, making a new one . . ."
     weeklyfull;
     echo -n "Removing old incremental backup . . ."
-    rm -rf $backup_root/*Daily-Incremental*
+    cd $backup_root
+    rm -rf *Daily-Incremental*
+    rm -rf $oldweekly
     echo "Done"
 else
     dailyincremental;
