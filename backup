@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Simple backup script
-# 1.0.3 (2015.05.13)
+# 1.0.4 (2015.06.17)
 # writed by vadonka
 
 if [ ! -f /usr/local/etc/simplebackup.conf ]; then
@@ -62,10 +62,14 @@ fi
 
 #################################
 date=$(date '+%Y-%m-%d_%H;%M;%S')
+year=$(date +%Y)
 dayofweek=$(date +%u)
-weekofyear=$(date +%U)
+weekofyear=$(date +%V)
+oldweekofyear=$(if [ $weekofyear == "01" ]; then echo "53"; else let d=$(date +%V)-1; echo $d; fi)
 monthofyear=$(date +%m)
 dayofmonth=$(date +%e)
+day=$(date +%a)
+month=$(date +%b)
 
 if [ $dayofweek == "1" ] && [ $dayofmonth -lt "8" ]; then
     firstmon=1
@@ -79,20 +83,18 @@ let num=$num-1
 numsub="${#folders_to_backup_subdir[*]}"
 let numsub=$numsub-1
 
-oldweekly=$(ls $backup_root | tr '\t' '\n' | grep Weekly | grep -v 'Weekly-Full-$weekofyear')
-
-dailyincremental()
+dailyInc()
 {
 for bck in $(seq 0 $num); do
     echo -n "Making daily incremental backup from folder '${folders_to_backup[$bck]}' with date $date . . ."
-    find /${folders_to_backup[$bck]} -newermt $(date +%Y-%m-%d -d '1 day ago') -type f -print | tar zcvf $backup_root/$(basename ${folders_to_backup[$bck]})-[$date]-[Daily-Incremental-$dayofweek].tgz -T - > /dev/null 2>&1
+    find /${folders_to_backup[$bck]} -newermt $(date +%Y-%m-%d -d '1 day ago') -type f -print | tar zcvf $backup_root/$(basename ${folders_to_backup[$bck]})-[$date]-[Daily-Inc-$day].tgz -T - > /dev/null 2>&1
     echo "Backup completed"
 done
 
 for bck in $(seq 0 $numsub); do
     for subdir in $(ls /${folders_to_backup_subdir[$bck]}); do
 	echo -n "Making daily incremental backup from folder '${folders_to_backup_subdir[$bck]}/$subdir' with date $date . . ."
-	find /${folders_to_backup_subdir[$bck]}/$subdir -newermt $(date +%Y-%m-%d -d '1 day ago') -type f -print | tar zcvf $backup_root/$subdir-[$date]-[Daily-Incremental-$dayofweek].tgz -T - > /dev/null 2>&1
+	find /${folders_to_backup_subdir[$bck]}/$subdir -newermt $(date +%Y-%m-%d -d '1 day ago') -type f -print | tar zcvf $backup_root/$subdir-[$date]-[Daily-Inc-$day].tgz -T - > /dev/null 2>&1
 	echo "Backup completed"
     done
 done
@@ -103,19 +105,19 @@ weeklyfull()
 for bck in $(seq 0 $num); do
     echo -n "Making full weekly backup from folder '${folders_to_backup[$bck]}' with date $date . . ."
     tar zcvf $backup_root/$(basename ${folders_to_backup[$bck]})-[$date]-[Weekly-Full-$weekofyear].tgz /${folders_to_backup[$bck]} > /dev/null 2>&1
-    touch $backup_root/[Weekly-Full-$weekofyear]-OK
+    touch $backup_root/[Weekly-Full-$year-$weekofyear]-OK
     echo "Backup completed"
 done
 
 for bck in $(seq 0 $numsub); do
     for subdir in $(ls /${folders_to_backup_subdir[$bck]}); do
 	echo -n "Making full weekly backup from folder '${folders_to_backup_subdir[$bck]}/$subdir' with date $date . . ."
-	tar zcvf $backup_root/$subdir-[$date]-[Weekly-Full-$weekofyear].tgz /${folders_to_backup_subdir[$bck]}/$subdir > /dev/null 2>&1
+	tar zcvf $backup_root/$subdir-[$date]-[Weekly-Full-$year-$weekofyear].tgz /${folders_to_backup_subdir[$bck]}/$subdir > /dev/null 2>&1
 	echo "Backup completed"
     done
 done
 
-touch $backup_root/[Weekly-Full-$weekofyear]-OK
+touch $backup_root/[Weekly-Full-$year-$weekofyear]-OK
 }
 
 monthlyfull()
@@ -123,45 +125,45 @@ monthlyfull()
 for bck in $(seq 0 $num); do
     echo -n "Making full monthly backup from folder '${folders_to_backup[$bck]}' with date $date . . ."
     tar zcvf $backup_root/$(basename ${folders_to_backup[$bck]})-[$date]-[Monthly-Full-$monthofyear].tgz /${folders_to_backup[$bck]} > /dev/null 2>&1
-    touch $backup_root/[Monthly-Full-$monthofyear]-OK
+    touch $backup_root/[Monthly-Full-$year-$month]-OK
     echo "Backup completed"
 done
 
 for bck in $(seq 0 $numsub); do
     for subdir in $(ls ${folders_to_backup_subdir[$bck]}); do
 	echo -n "Making full monthly backup from folder '${folders_to_backup_subdir[$bck]}/$subdir' with date $date . . ."
-	tar zcvf $backup_root/$subdir-[$date]-[Monthly-Full-$monthofyear].tgz /${folders_to_backup_subdir[$bck]}/$subdir > /dev/null 2>&1
+	tar zcvf $backup_root/$subdir-[$date]-[Monthly-Full-$year-$month].tgz /${folders_to_backup_subdir[$bck]}/$subdir > /dev/null 2>&1
 	echo "Backup completed"
     done
 done
 
-touch $backup_root/[Monthly-Full-$monthofyear]-OK
+touch $backup_root/[Monthly-Full-$year-$month]-OK
 }
 
 if [ $dayofweek == "1" ] && [ $firstmon == "0" ]; then
     weeklyfull;
     echo -n "Removing old incremental daily backup . . ."
     cd $backup_root
-    rm -rf *Daily-Incremental*
-    rm -rf $oldweekly
+    rm -rf *Daily-Inc*
+    rm -rf *Weekly-Full-$year-$oldweekofyear*
     echo "Done"
 elif [ $dayofweek == "1" ] && [ $firstmon == "1" ]; then
     monthlyfull;
     echo -n "Removing old incremental daily and weekly full backup . . ."
     cd $backup_root
     rm -rf *Weekly-Full*
-    rm -rf *Daily-Incremental*
+    rm -rf *Daily-Inc*
     echo "Done"
-elif [ $dayofweek -ne "1" ] && [ ! -f $backup_root/[Weekly-Full-$weekofyear]-OK ]; then
+elif [ $dayofweek -ne "1" ] && [ $(ls $backup_root | grep Weekly-Full-$year-$weekofyear | wc -l) == "0" ]; then
     echo "Weekly Full backup is missing, making a new one . . ."
     weeklyfull;
     echo -n "Removing old incremental backup . . ."
     cd $backup_root
-    rm -rf *Daily-Incremental*
-    rm -rf $oldweekly
+    rm -rf *Daily-Inc*
+    rm -rf *Weekly-Full-$year-$oldweekofyear*
     echo "Done"
 else
-    dailyincremental;
+    dailyInc;
 fi
 
 if [[ $mysqlbackup == "yes" ]]; then
