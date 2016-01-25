@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Simple backup script
-# 1.0.4 (2015.06.17)
+# 1.0.5 (2016.01.25)
 # writed by vadonka
 
 if [ ! -f /usr/local/etc/simplebackup.conf ]; then
@@ -94,7 +94,7 @@ done
 for bck in $(seq 0 $numsub); do
     for subdir in $(ls /${folders_to_backup_subdir[$bck]}); do
 	echo -n "Making daily incremental backup from folder '${folders_to_backup_subdir[$bck]}/$subdir' with date $date . . ."
-	find /${folders_to_backup_subdir[$bck]}/$subdir -newermt $(date +%Y-%m-%d -d '1 day ago') -type f -print | nice -n 19 ionice -c3 tar zcvf $backup_root/$subdir-[$date]-[Daily-Inc-$day].tgz -T - > /dev/null 2>&1
+	find /${folders_to_backup_subdir[$bck]}/$subdir/* -newermt $(date +%Y-%m-%d -d '1 day ago') -type f -print | nice -n 19 ionice -c3 tar zcvf $backup_root/$subdir-[$date]-[Daily-Inc-$day].tgz -T - > /dev/null 2>&1
 	echo "Backup completed"
     done
 done
@@ -112,7 +112,7 @@ done
 for bck in $(seq 0 $numsub); do
     for subdir in $(ls /${folders_to_backup_subdir[$bck]}); do
 	echo -n "Making full weekly backup from folder '${folders_to_backup_subdir[$bck]}/$subdir' with date $date . . ."
-	nice -n 19 ionice -c3 tar zcvf $backup_root/$subdir-[$date]-[Weekly-Full-$year-$weekofyear].tgz /${folders_to_backup_subdir[$bck]}/$subdir > /dev/null 2>&1
+	nice -n 19 ionice -c3 tar zcvf $backup_root/$subdir-[$date]-[Weekly-Full-$year-$weekofyear].tgz /${folders_to_backup_subdir[$bck]}/$subdir/* > /dev/null 2>&1
 	echo "Backup completed"
     done
 done
@@ -130,9 +130,9 @@ for bck in $(seq 0 $num); do
 done
 
 for bck in $(seq 0 $numsub); do
-    for subdir in $(ls ${folders_to_backup_subdir[$bck]}); do
+    for subdir in $(ls /${folders_to_backup_subdir[$bck]} | grep -v clients); do
 	echo -n "Making full monthly backup from folder '${folders_to_backup_subdir[$bck]}/$subdir' with date $date . . ."
-	nice -n 19 ionice -c3 tar zcvf $backup_root/$subdir-[$date]-[Monthly-Full-$year-$month].tgz /${folders_to_backup_subdir[$bck]}/$subdir > /dev/null 2>&1
+	nice -n 19 ionice -c3 tar zcvf $backup_root/$subdir-[$date]-[Monthly-Full-$year-$month].tgz /${folders_to_backup_subdir[$bck]}/$subdir/* > /dev/null 2>&1
 	echo "Backup completed"
     done
 done
@@ -174,7 +174,7 @@ echo "Backup databases . . ."
 for i in $(mysql -u $mysqluser -p$mysqlpass -e "SHOW DATABASES;" | grep -v "+" | grep -v "Database" | grep -v "_schema"); do
     dbname=`basename $i`
     echo -n " $dbname . . ."
-    nice -n 19 ionice -c3 mysqldump -E -u $mysqluser -p$mysqlpass $dbname > $dbasedir/"$dbname".sql
+    nice -n 19 ionice -c3 mysqldump -a -B --events --routines --triggers --add-drop-database --add-drop-table -u $mysqluser -p$mysqlpass $dbname > $dbasedir/"$dbname".sql
     nice -n 19 ionice -c3 gzip -9 $dbasedir/"$dbname".sql
     echo "Done"
 done
