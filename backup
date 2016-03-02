@@ -1,31 +1,30 @@
 #!/bin/bash
 
 # Simple backup script
-# 1.0.5 (2016.01.25)
+# 1.0.6 (2016.03.02)
 # writed by vadonka
 
 if [ ! -f /usr/local/etc/simplebackup.conf ]; then
 echo -en "Config file doesn't exsist!\nCreating default config..."
 cat > /usr/local/etc/simplebackup.conf << EOF
 # Change this to yes or comment out after setup
-configured=no
+configured="no"
 
 # Backup files root
 backup_root="/opt/backup"
 
-# Folders to backup
-# DONT delete the ()! Separate folders with space, see example
-folders_to_backup=(root etc)
-folders_to_backup_subdir=(var/www)
+# Folders to backup, separate folders with space
+folders_to_backup="root etc"
+folders_to_backup_subdir="/var/www"
 
 # MySQL backup (yes/no)
-mysqlbackup=no
+mysqlbackup="no"
 
 # MySQL backup user (usually root)
-mysqluser=root
+mysqluser="root"
 
 # MySQL backup user pass
-mysqlpass=
+mysqlpass=""
 
 EOF
 
@@ -35,27 +34,27 @@ fi
 
 source /usr/local/etc/simplebackup.conf
 
-if [[ $configured == "no" ]]; then
+if [[ ${configured} == "no" ]]; then
     echo "Please setup the configuration file first!"
     exit 1
-elif [ -z $backup_root ] || [ -z $folders_to_backup ] || [ -z $mysqlbackup ]; then
+elif [[ -z ${backup_root} ]] || [[ -z ${folders_to_backup} ]] || [[ -z ${mysqlbackup} ]]; then
     echo "Invalid configuration file!"
     exit 1
-elif [[ $mysqlbackup == "yes" ]]; then
-    if [ -z $mysqluser ] || [ -z $mysqlpass ]; then
+elif [[ ${mysqlbackup} == "yes" ]]; then
+    if [[ -z ${mysqluser} ]] || [[ -z ${mysqlpass} ]]; then
 	echo "You're set the MySQL backup to yes, but you dont set the user/password correctly."
 	exit 1
     fi
 fi
 
-if [ ! -d $backup_root ]; then
+if [ ! -d ${backup_root} ]; then
     echo "Backup root folder doesn't exsist!"
     exit 1
 else
-    touch $backup_root/testfile 2>/dev/null && rm -f $backup_root/testfile || backuprw=no
+    touch ${backup_root}/testfile 2>/dev/null && rm -f ${backup_root}/testfile || backuprw="no"
 fi
 
-if [[ $backuprw == "no" ]]; then
+if [[ ${backuprw} == "no" ]]; then
     echo "Backup root directory ($backup_root) is not writeable!"
     exit 1
 fi
@@ -65,100 +64,94 @@ date=$(date '+%Y-%m-%d_%H;%M;%S')
 year=$(date +%Y)
 dayofweek=$(date +%u)
 weekofyear=$(date +%V)
-oldweekofyear=$(if [ $weekofyear == "01" ]; then echo "53"; else let d=$(date +%V)-1; echo $d; fi)
+oldweekofyear=$(if [ ${weekofyear} == "01" ]; then echo "53"; else let d=$(date +%V)-1; echo ${d}; fi)
 monthofyear=$(date +%m)
 dayofmonth=$(date +%e)
 day=$(date +%a)
 month=$(date +%b)
 
-if [ $dayofweek == "1" ] && [ $dayofmonth -lt "8" ]; then
-    firstmon=1
+if [[ ${dayofweek} == "1" ]] && [[ ${dayofmonth} -lt "8" ]]; then
+    firstmon="1"
 else
-    firstmon=0
+    firstmon="0"
 fi
-
-num="${#folders_to_backup[*]}"
-let num=$num-1
-
-numsub="${#folders_to_backup_subdir[*]}"
-let numsub=$numsub-1
 
 dailyInc()
 {
-for bck in $(seq 0 $num); do
-    echo -n "Making daily incremental backup from folder '${folders_to_backup[$bck]}' with date $date . . ."
-    find /${folders_to_backup[$bck]} -newermt $(date +%Y-%m-%d -d '1 day ago') -type f -print | nice -n 19 ionice -c3 tar zcvf $backup_root/$(basename ${folders_to_backup[$bck]})-[$date]-[Daily-Inc-$day].tgz -T - > /dev/null 2>&1
+for bck in ${folders_to_backup}; do
+    echo -n "Making daily incremental backup from folder ${bck} with date ${date} . . ."
+    find ${bck} -newermt $(date +%Y-%m-%d -d '1 day ago') -type f -print | nice -n 19 ionice -c3 tar zcvf ${backup_root}/$(basename ${bck})-[${date}]-[Daily-Inc-${day}].tgz -T - > /dev/null 2>&1
     echo "Backup completed"
 done
 
-for bck in $(seq 0 $numsub); do
-    for subdir in $(ls /${folders_to_backup_subdir[$bck]}); do
-	echo -n "Making daily incremental backup from folder '${folders_to_backup_subdir[$bck]}/$subdir' with date $date . . ."
-	find /${folders_to_backup_subdir[$bck]}/$subdir/* -newermt $(date +%Y-%m-%d -d '1 day ago') -type f -print | nice -n 19 ionice -c3 tar zcvf $backup_root/$subdir-[$date]-[Daily-Inc-$day].tgz -T - > /dev/null 2>&1
-	echo "Backup completed"
+for bck in ${folders_to_backup_subdir}; do
+    for subdir in $(ls ${folders_to_backup_subdir}); do
+		echo -n "Making daily incremental backup from folder ${folders_to_backup_subdir}/${subdir} with date ${date} . . ."
+		find ${folders_to_backup_subdir}/${subdir}/* -newermt $(date +%Y-%m-%d -d '1 day ago') -type f -print | nice -n 19 ionice -c3 tar zcvf ${backup_root}/${subdir}-[${date}]-[Daily-Inc-${day}].tgz -T - > /dev/null 2>&1
+		echo "Backup completed"
     done
 done
 }
 
 weeklyfull()
 {
-for bck in $(seq 0 $num); do
-    echo -n "Making full weekly backup from folder '${folders_to_backup[$bck]}' with date $date . . ."
-    nice -n 19 ionice -c3 tar zcvf $backup_root/$(basename ${folders_to_backup[$bck]})-[$date]-[Weekly-Full-$weekofyear].tgz /${folders_to_backup[$bck]} > /dev/null 2>&1
-    touch $backup_root/[Weekly-Full-$year-$weekofyear]-OK
+for bck in ${folders_to_backup}; do
+    echo -n "Making full weekly backup from folder ${bck} with date ${date} . . ."
+    nice -n 19 ionice -c3 tar zcvf ${backup_root}/$(basename ${bck})-[${date}]-[Weekly-Full-${weekofyear}].tgz ${bck} > /dev/null 2>&1
+    touch ${backup_root}/[Weekly-Full-${year}-${weekofyear}]-OK
     echo "Backup completed"
 done
 
-for bck in $(seq 0 $numsub); do
-    for subdir in $(ls /${folders_to_backup_subdir[$bck]}); do
-	echo -n "Making full weekly backup from folder '${folders_to_backup_subdir[$bck]}/$subdir' with date $date . . ."
-	nice -n 19 ionice -c3 tar zcvf $backup_root/$subdir-[$date]-[Weekly-Full-$year-$weekofyear].tgz /${folders_to_backup_subdir[$bck]}/$subdir/* > /dev/null 2>&1
-	echo "Backup completed"
+for bck in ${folders_to_backup_subdir}; do
+    for subdir in $(ls ${folders_to_backup_subdir}); do
+		echo -n "Making full weekly backup from folder ${folders_to_backup_subdir}/${subdir} with date ${date} . . ."
+		nice -n 19 ionice -c3 tar zcvf ${backup_root}/${subdir}-[${date}]-[Weekly-Full-${year}-${weekofyear}].tgz ${folders_to_backup_subdir}/${subdir}/* > /dev/null 2>&1
+		echo "Backup completed"
     done
 done
 
-touch $backup_root/[Weekly-Full-$year-$weekofyear]-OK
+touch ${backup_root}/[Weekly-Full-${year}-${weekofyear}]-OK
 }
 
 monthlyfull()
 {
-for bck in $(seq 0 $num); do
-    echo -n "Making full monthly backup from folder '${folders_to_backup[$bck]}' with date $date . . ."
-    nice -n 19 ionice -c3 tar zcvf $backup_root/$(basename ${folders_to_backup[$bck]})-[$date]-[Monthly-Full-$monthofyear].tgz /${folders_to_backup[$bck]} > /dev/null 2>&1
-    touch $backup_root/[Monthly-Full-$year-$month]-OK
+for bck in ${folders_to_backup}; do
+    echo -n "Making full monthly backup from folder ${bck} with date $date . . ."
+    nice -n 19 ionice -c3 tar zcvf ${backup_root}/$(basename ${bck})-[${date}]-[Monthly-Full-${monthofyear}].tgz ${bck} > /dev/null 2>&1
+    touch ${backup_root}/[Monthly-Full-${year}-${month}]-OK
     echo "Backup completed"
 done
 
-for bck in $(seq 0 $numsub); do
-    for subdir in $(ls /${folders_to_backup_subdir[$bck]} | grep -v clients); do
-	echo -n "Making full monthly backup from folder '${folders_to_backup_subdir[$bck]}/$subdir' with date $date . . ."
-	nice -n 19 ionice -c3 tar zcvf $backup_root/$subdir-[$date]-[Monthly-Full-$year-$month].tgz /${folders_to_backup_subdir[$bck]}/$subdir/* > /dev/null 2>&1
+for bck in ${folders_to_backup_subdir}; do
+    for subdir in $(ls ${folders_to_backup_subdir}; do
+	echo -n "Making full monthly backup from folder ${folders_to_backup_subdir}/${subdir} with date ${date} . . ."
+	nice -n 19 ionice -c3 tar zcvf ${backup_root}/${subdir}-[${date}]-[Monthly-Full-${year}-${month}].tgz ${folders_to_backup_subdir}/${subdir}/* > /dev/null 2>&1
 	echo "Backup completed"
     done
 done
 
-touch $backup_root/[Monthly-Full-$year-$month]-OK
+touch ${backup_root}/[Monthly-Full-${year}-${month}]-OK
 }
 
-if [ $dayofweek == "1" ] && [ $firstmon == "0" ]; then
+if [[ ${dayofweek} == "1" ]] && [[ ${firstmon} == "0" ]]; then
     weeklyfull;
     echo -n "Removing old incremental daily backup . . ."
-    cd $backup_root
+    cd ${backup_root}
     rm -rf *Daily-Inc*
     rm -rf *Weekly-Full-$year-$oldweekofyear*
     echo "Done"
-elif [ $dayofweek == "1" ] && [ $firstmon == "1" ]; then
+elif [[ ${dayofweek} == "1" ]] && [[ ${firstmon} == "1" ]]; then
     monthlyfull;
     echo -n "Removing old incremental daily and weekly full backup . . ."
-    cd $backup_root
+    cd ${backup_root}
     rm -rf *Weekly-Full*
     rm -rf *Daily-Inc*
     echo "Done"
-elif [ $dayofweek -ne "1" ] && [ $(ls $backup_root | grep Weekly-Full-$year-$weekofyear | wc -l) == "0" ]; then
+elif [[ ${dayofweek} -ne "1" ]] && [[ $(ls ${backup_root} | grep Weekly-Full-${year}-${weekofyear} | wc -l) == "0" ]]; then
     echo "Weekly Full backup is missing, making a new one . . ."
     weeklyfull;
     echo -n "Removing old incremental backup . . ."
-    cd $backup_root
+    cd ${backup_root}
     rm -rf *Daily-Inc*
     rm -rf *Weekly-Full-$year-$oldweekofyear*
     echo "Done"
@@ -166,16 +159,16 @@ else
     dailyInc;
 fi
 
-if [[ $mysqlbackup == "yes" ]]; then
-dbasedir=$backup_root/databases/$date
-mkdir -p $dbasedir
+if [[ ${mysqlbackup} == "yes" ]]; then
+dbasedir=${backup_root}/databases/${date}
+mkdir -p ${dbasedir}
 echo "Backup databases . . ."
 
-for i in $(mysql -u $mysqluser -p$mysqlpass -e "SHOW DATABASES;" | grep -v "+" | grep -v "Database" | grep -v "_schema"); do
-    dbname=`basename $i`
-    echo -n " $dbname . . ."
-    nice -n 19 ionice -c3 mysqldump -a -B --events --routines --triggers --add-drop-database --add-drop-table -u $mysqluser -p$mysqlpass $dbname > $dbasedir/"$dbname".sql
-    nice -n 19 ionice -c3 gzip -9 $dbasedir/"$dbname".sql
+for i in $(mysql -u ${mysqluser} -p${mysqlpass} -e "SHOW DATABASES;" | grep -v "+" | grep -v "Database" | grep -v "_schema"); do
+    dbname=`basename ${i}`
+    echo -n "${dbname} . . ."
+    nice -n 19 ionice -c3 mysqldump -a -B --events --routines --triggers --add-drop-database --add-drop-table -u ${mysqluser} -p${mysqlpass} ${dbname} > ${dbasedir}/${dbname}.sql
+    nice -n 19 ionice -c3 gzip -9 ${dbasedir}/${dbname}.sql
     echo "Done"
 done
 fi
