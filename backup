@@ -61,14 +61,14 @@ fi
 
 #################################
 date=$(date '+%Y-%m-%d_%H;%M;%S')
-year=$(date +%Y)
-dayofweek=$(date +%u)
-weekofyear=$(date +%V)
-oldweekofyear=$(if [ ${weekofyear} == "01" ]; then echo "53"; else let d=$(date +%V)-1; echo ${d}; fi)
-monthofyear=$(date +%m)
-dayofmonth=$(date +%e)
-day=$(date +%a)
-month=$(date +%b)
+year=$(date +'%-Y')
+dayofweek=$(date +'%-u')
+weekofyear=$(date +'%-V')
+oldweekofyear=$(if [[ ${weekofyear} == "1" ]]; then echo "53"; else echo $((weekofyear-1)); fi)
+monthofyear=$(date +'%-m')
+dayofmonth=$(date +'%-e')
+day=$(date +'%-a')
+month=$(date +'%-b')
 
 if [[ ${dayofweek} == "1" ]] && [[ ${dayofmonth} -lt "8" ]]; then
     firstmon="1"
