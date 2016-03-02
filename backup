@@ -123,7 +123,7 @@ for bck in ${folders_to_backup}; do
 done
 
 for bck in ${folders_to_backup_subdir}; do
-    for subdir in $(ls ${folders_to_backup_subdir}; do
+    for subdir in $(ls ${folders_to_backup_subdir}); do
 	echo -n "Making full monthly backup from folder ${folders_to_backup_subdir}/${subdir} with date ${date} . . ."
 	nice -n 19 ionice -c3 tar zcvf ${backup_root}/${subdir}-[${date}]-[Monthly-Full-${year}-${month}].tgz ${folders_to_backup_subdir}/${subdir}/* > /dev/null 2>&1
 	echo "Backup completed"
